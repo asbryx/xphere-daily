@@ -19,6 +19,24 @@ Automated daily check-in for the **Xphere Community Bot** ([t.me/Xphere_Communit
 
 Initial account setup (onboarding, missions, X connection) is **not** automated by this repo — see [Initial Account Setup](#initial-account-setup) below. This repo focuses on the **daily check-in**, which repeats every day.
 
+## Two scripts, pick one
+
+| Script | Behavior | Best for |
+|---|---|---|
+| `xphere_daily.py` | Run once → check-in all accounts → exit | Cron / Task Scheduler |
+| `xphere_daily_loop.py` | Run once → check-in → **loop forever** (auto-retry failures + sleep until next UTC day) | VPS / dedicated box |
+
+Both do the same check-in. The loop version is a daemon — start it once and forget it:
+
+```bash
+python xphere_daily_loop.py
+```
+
+- Failed accounts (network/session errors) are **auto-retried every 30 minutes** (max 6 retries/day)
+- Once all accounts succeed or are `already`, it sleeps until **00:05 UTC** (the daily reset) and starts over
+- Restart-safe: accounts that already checked in are skipped automatically
+- Logs: `xphere_daily_loop.log` + `xphere_daily_loop.jsonl`
+
 ---
 
 ## How it works
@@ -85,7 +103,11 @@ TG_API_ID=12345678
 TG_API_HASH=0123456789abcdef0123456789abcdef
 STATE_FILE=./xphere_state.json
 LOG_FILE=./xphere_checkin_log.jsonl
-DELAY_BETWEEN=3
+DELAY_BETWEEN=4
+
+# loop-only (xphere_daily_loop.py)
+RETRY_INTERVAL=1800    # seconds between failed-account retries (default 30m)
+MAX_RETRIES=6          # max retries per UTC day
 ```
 
 ### `xphere_state.json` format (optional)
@@ -107,12 +129,17 @@ If the file doesn't exist, the bot automatically processes every `acc*.session` 
 
 ## Running
 
+**One-shot** (exit after all accounts processed):
 ```bash
 python xphere_daily.py
 ```
 
-Output:
+**Looping daemon** (runs forever, auto-retries failures, sleeps to next UTC day):
+```bash
+python xphere_daily_loop.py
+```
 
+Example output:
 ```
 === XPHERE DAILY CHECK-IN: 26 accounts ===
 acc01    ✓ +24 pts total (streak 2)
@@ -122,9 +149,22 @@ acc03    ✗ session unauthorized
 === DONE: 25 new check-ins | 1 already | 0 failed ===
 ```
 
-Full results are logged to `xphere_checkin_log.jsonl`.
+Loop-specific log (`xphere_daily_loop.log`):
+```
+=== XPHERE DAILY LOOP — 26 accounts | retry 30m x6 ===
+  acc01 +2 (streak 2)
+  acc02 already
+  …
+pass clean: 26 new, 0 already — sleep 9h50m
+```
+
+Full results are logged to `xphere_checkin_log.jsonl` (one-shot) or `xphere_daily_loop.jsonl` (loop).
 
 ### Scheduling (optional)
+
+If you use the **looping** script, no scheduler is needed — it runs forever.
+
+If you prefer the **one-shot** script, schedule it daily:
 
 **Windows Task Scheduler:**
 ```
@@ -136,6 +176,27 @@ Trigger : Daily 09:00
 **Linux cron:**
 ```cron
 0 9 * * * cd /path/to/xphere-daily && /usr/bin/python3 xphere_daily.py >> cron.log 2>&1
+```
+
+**systemd (loop as a service):**
+```ini
+# /etc/systemd/system/xphere.service
+[Unit]
+Description=Xphere daily check-in loop
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/xphere-daily
+ExecStart=/usr/bin/python3 xphere_daily_loop.py
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
+```
+```bash
+sudo systemctl enable --now xphere
+journalctl -u xphere -f
 ```
 
 ---
