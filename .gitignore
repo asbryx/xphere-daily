@@ -1,0 +1,17 @@
+# sessions & credentials — NEVER commit
+sessions/
+*.session
+*.session-journal
+.env
+xphere_state.json
+xphere_checkin_log.jsonl
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# os
+.DS_Store
+Thumbs.db
