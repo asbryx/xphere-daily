@@ -48,7 +48,10 @@ TG_API_ID = int(_env("TG_API_ID", "1"))                  # bebas utk session yan
 TG_API_HASH = _env("TG_API_HASH", "x" * 32)
 BOT_USERNAME = _env("BOT_USERNAME", "Xphere_CommunityBot")
 WEBAPP_URL = _env("WEBAPP_URL", "https://x-phere.com")
-SB_URL = _env("SUPABASE_URL", "https://ltodfynoaozgcaobwcgo.supabase.co")
+SB_URL = _env("SUPABASE_URL", "")
+if not SB_URL:
+    print("ERROR: SUPABASE_URL belum diisi di .env")
+    sys.exit(1)
 SB_FN = "dynamic-handler"
 
 # Supabase anon key mini app (publik, dibundel di index.html mini app).
