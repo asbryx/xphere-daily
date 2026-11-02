@@ -169,8 +169,7 @@ Onboarding + X connection automation lives in a **separate repo** (private) sinc
 - **`.session` files = full Telegram account credentials.** Never commit or share them.
 - `api_id`/`api_hash` can be shared with a team, but ideally keep them in `.env`.
 - This script stores **no passwords or tokens** — everything lives in the encrypted Telethon session file.
-- The Supabase anon key used here is the **public anon key** of the Xphere mini app (exposed in any client) — not a secret.
-- `SUPABASE_URL` and `SUPABASE_ANON_KEY` are **required** in `.env` — grab them from the mini app's network tab.
+- The Supabase URL + anon key are **hardcoded** in the script — they are the **public infrastructure of the Xphere mini app** (exposed to every client, shared by all players). They are not our credentials and not secrets. Zero config needed for Supabase.
 
 ---
 
