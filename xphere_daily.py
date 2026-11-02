@@ -48,20 +48,14 @@ TG_API_ID = int(_env("TG_API_ID", "1"))                  # bebas utk session yan
 TG_API_HASH = _env("TG_API_HASH", "x" * 32)
 BOT_USERNAME = _env("BOT_USERNAME", "Xphere_CommunityBot")
 WEBAPP_URL = _env("WEBAPP_URL", "https://x-phere.com")
-SB_URL = _env("SUPABASE_URL", "")
-if not SB_URL:
-    print("ERROR: SUPABASE_URL belum diisi di .env")
-    sys.exit(1)
+SB_URL = _env("SUPABASE_URL", "https://ltodfynoaozgcaobwcgo.supabase.co")
 SB_FN = "dynamic-handler"
 
 # Supabase anon key mini app (publik, dibundel di index.html mini app).
 # Kalau project owner ganti key, update di sini.
 SB_ANON_KEY = _env(
     "SUPABASE_ANON_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0b2RmeW5vYW96Z2Nhb2J3Y2dvIiwicm9sZSI6ImFub24i"
-    "LCJpYXQiOjE3MjM0MzY0MDAsImV4cCI6MjAzOTAxMjQwMH0."
-    "PLACEHOLDER_REPLACE_WITH_CURRENT_ANON_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0b2RmeW5vYW96Z2Nhb2J3Y2dvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjM0MzY0MDAsImV4cCI6MjAzOTAxMjQwMH0.qVGRd8RRBJfTBlPGCNLJcQFRkG0Rr2SjmWkRiTCxCak"
 )
 
 DELAY_BETWEEN = float(_env("DELAY_BETWEEN", "3"))         # detik jeda antar akun
