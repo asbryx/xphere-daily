@@ -11,11 +11,15 @@ Automated daily check-in for the **Xphere Community Bot** ([t.me/Xphere_Communit
 | Action | Frequency | Points |
 |---|---|---|
 | Daily check-in | 1×/day | +2 |
-| Mission: Join Telegram | once | +5 |
-| Mission: Follow X | once | +5 |
-| Mission: Visit website | once | +3 |
-| Mission: Comment / Like / Retweet | once | +3 × 3 |
+| Daily: Comment on X (m1) | 1×/day | +3 |
+| Daily: Like on X (m2) | 1×/day | +3 |
+| Daily: Retweet on X (m3) | 1×/day | +3 |
+| Missions: Join TG / Follow X / Visit web | once | +13 total |
 | Referral | once | +5 to referrer |
+
+**Daily total: +11 points per account per day** (check-in + 3 Twitter missions).
+The 3 Twitter missions are click-only: the server never verifies the actual X activity —
+claims succeed without touching your X accounts.
 
 Initial account setup (onboarding, missions, X connection) is **not** automated by this repo — see [Initial Account Setup](#initial-account-setup) below. This repo focuses on the **daily check-in**, which repeats every day.
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Xphere daily check-in — LOOPING daemon.
+"""Xphere daily — check-in + daily Twitter missions (LOOPING daemon).
 
-Run sekali, jalan terus sampai di-stop (Ctrl-C / kill):
-  1. Pass checkin semua akun sekarang
-  2. Akun yang gagal (network/session/err) di-retry tiap 30 menit (maks 6x/hari)
-  3. Semua sukses/already -> tidur sampai 00:05 UTC (reset harian) -> ulangi
-  4. Log ke xphere_daily_loop.log / .jsonl
-
-Resume-safe: akun yang "already" di-skip otomatis tiap pass.
+Run sekali, jalan terus:
+  1. Pass harian semua akun: checkin (+2) + missions 1/2/3 (+3 each = +11/akun/hari)
+     - m1 = comment X, m2 = like X, m3 = retweet X (server gak verify real post!)
+     - m5/m6/m8 = one-time (udah kelar saat onboarding, auto-skip via "already")
+  2. Gagal network/session → retry tiap 30 menit (maks 6x/hari)
+  3. Semua sukses/already → tidur sampai 00:05 UTC (reset harian) → ulangi
+Resume-safe: "already" di-skip otomatis.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from pathlib import Path
 
 from telethon import TelegramClient, functions
 
-# ---------------------------------------------------------------- config (.env)
+
 def _env(name: str, default: str = "") -> str:
     v = os.environ.get(name)
     if v is not None:
@@ -36,8 +36,9 @@ def _env(name: str, default: str = "") -> str:
                 return line.split("=", 1)[1].strip().strip("\"").strip("'")
     return default
 
+
 BASE = Path(__file__).resolve().parent
-SESSION_DIR = Path(_env("SESSION_DIR", r"D:\Account\05_SESI_COOKIE\TELEGRAM SESSION"))
+SESSION_DIR = Path(_env("SESSION_DIR", "./sessions"))
 LOG = BASE / "xphere_daily_loop.log"
 JSONL = BASE / "xphere_daily_loop.jsonl"
 PAIR_FILE = BASE / "xphere_pairing_v2.json"
@@ -45,8 +46,11 @@ BOT = _env("BOT_USERNAME", "Xphere_CommunityBot")
 WEBAPP_URL = _env("WEBAPP_URL", "https://x-phere.com")
 SB = _env("SUPABASE_URL", "https://ltodfynoaozgcaobwcgo.supabase.co").rstrip("/")
 DELAY_BETWEEN = float(_env("DELAY_BETWEEN", "4"))
-RETRY_INTERVAL = int(_env("RETRY_INTERVAL", "1800"))   # 30 menit
+RETRY_INTERVAL = int(_env("RETRY_INTERVAL", "1800"))
 MAX_RETRIES = int(_env("MAX_RETRIES", "6"))
+
+# daily missions: checkin +2, m1/m2/m3 +3 each (Twitter comment/like/retweet — click-only)
+DAILY_MISSIONS = [1, 2, 3]
 
 _h = urllib.request.urlopen(urllib.request.Request(
     "https://henrykim96.github.io/xphere-mini-app/",
@@ -62,7 +66,7 @@ def log(msg: str) -> None:
         fh.write(line + "\n")
 
 
-def call_backend(body: dict) -> dict:
+def call(body: dict) -> dict:
     req = urllib.request.Request(FN, data=json.dumps(body).encode(), headers={
         "Content-Type": "application/json",
         "Authorization": f"Bearer {KEY}",
@@ -107,10 +111,11 @@ def seconds_until_next_utc_day() -> int:
     return int((nxt - now).total_seconds())
 
 
-def run_pass(day: str) -> dict:
-    summary = {"day": day, "ok": [], "already": [], "fail": [],
+def run_pass(day: str, tg_list: list[str]) -> dict:
+    summary = {"day": day, "ok": [], "already": [], "fail": [], "gained": 0,
                "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
-    for tg in TG_ACCS:
+    for tg in tg_list:
+        gained = 0
         try:
             init = asyncio.run(get_initdata(tg))
         except Exception as e:                              # noqa: BLE001
@@ -123,17 +128,31 @@ def run_pass(day: str) -> dict:
             log(f"  {tg} initdata kosong")
             time.sleep(DELAY_BETWEEN)
             continue
-        r = call_backend({"action": "checkin", "initData": init})
-        if r.get("ok"):
-            summary["ok"].append(tg)
-            log(f"  {tg} +2 (streak {r.get('streak', '?')})")
-        elif r.get("reason") == "already":
-            summary["already"].append(tg)
-            log(f"  {tg} already")
+
+        u = call({"action": "load_user", "initData": init})
+        before = ((u or {}).get("user") or {}).get("points") or 0
+
+        c = call({"action": "checkin", "initData": init})
+        ck = "ok" if c.get("ok") else c.get("reason", "?")
+
+        mres = []
+        for mid in DAILY_MISSIONS:
+            m = call({"mission_id": mid, "initData": init})
+            mres.append(f"m{mid}:{'ok' if m.get('ok') else m.get('reason', '?')}")
+
+        u2 = call({"action": "load_user", "initData": init})
+        after = ((u2 or {}).get("user") or {}).get("points") or 0
+        gained = max(0, after - before)
+        summary["gained"] += gained
+
+        if all(("already" in m or "ok" in m) for m in mres) and ck in ("ok", "already"):
+            summary["ok" if gained else "already"].append(tg)
+            log(f"  {tg} +{gained} pts ({ck}, {' '.join(mres)})")
         else:
-            summary["fail"].append({"tg": tg, "err": r.get("reason", "?")})
-            log(f"  {tg} FAIL {r.get('reason', '?')}")
+            summary["fail"].append({"tg": tg, "err": f"{ck} / {' '.join(mres)}"})
+            log(f"  {tg} FAIL {ck} / {' '.join(mres)}")
         time.sleep(DELAY_BETWEEN)
+
     with JSONL.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(summary, ensure_ascii=False) + "\n")
     return summary
@@ -144,9 +163,7 @@ def main() -> int:
         tg_list = sorted(json.loads(PAIR_FILE.read_text(encoding="utf-8")).keys())
     else:
         tg_list = sorted(f.stem for f in SESSION_DIR.glob("acc*.session"))
-    global TG_ACCS
-    TG_ACCS = tg_list
-    log(f"=== XPHERE DAILY LOOP — {len(TG_ACCS)} akun | retry {RETRY_INTERVAL//60}m x{MAX_RETRIES} ===")
+    log(f"=== XPHERE DAILY LOOP — {len(tg_list)} akun | checkin+11pts/akun | retry {RETRY_INTERVAL//60}m x{MAX_RETRIES} ===")
 
     retries = 0
     current_day = utc_today()
@@ -157,11 +174,11 @@ def main() -> int:
             retries = 0
             log(f"=== HARI BARU UTC: {day} ===")
 
-        s = run_pass(day)
+        s = run_pass(day, tg_list)
         if not s["fail"]:
             retries = 0
             wait = seconds_until_next_utc_day()
-            log(f"pass bersih: {len(s['ok'])} baru, {len(s['already'])} already — tidur {wait//3600}h{(wait%3600)//60}m")
+            log(f"pass bersih: {len(s['ok'])} baru, {len(s['already'])} already, +{s['gained']} pts — tidur {wait//3600}h{(wait%3600)//60}m")
             time.sleep(wait)
             continue
 
